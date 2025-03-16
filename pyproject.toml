@@ -1,0 +1,50 @@
+[tool.poetry]
+name = "elevator-simulator"
+version = "0.1.0"
+description = ""
+authors = ["Paolo Notaro <paolo.notaro@outlook.com>"]
+readme = "README.md"
+package-mode = false
+
+# explicitly disable implicit package discovery
+packages = []
+
+[tool.poetry.dependencies]
+python = "^3.12"
+gymnasium = "^1.1.1"
+torch = {version = "^2.5.1+cu121", source = "pytorch-cu121"}
+torchvision = {version = "^0.20.1+cu121", source = "pytorch-cu121"}
+torchaudio = {version = "^2.5.1+cu121", source = "pytorch-cu121"}
+
+
+[tool.poetry.group.dev.dependencies]
+flake8 = "^7.1.2"
+black = "^25.1.0"
+isort = "^6.0.1"
+
+
+[[tool.poetry.source]]
+name = "pytorch-nightly"
+url = "https://download.pytorch.org/whl/nightly/cu128"
+priority = "explicit"
+
+
+[[tool.poetry.source]]
+name = "pytorch-cu121"
+url = "https://download.pytorch.org/whl/cu121"
+priority = "explicit"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+
+[tool.isort]
+profile = "black"
+
+[tool.black]
+line-length = 100
+target-version = ['py312']
+
+[tool.poetry.scripts]
+elevator-sim = "simulation.run:main"
