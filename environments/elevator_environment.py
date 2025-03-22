@@ -176,9 +176,15 @@ class ElevatorEnvironment(Env):
 
         observation = self._get_observation()
         done = self._check_done()
+
+        # if episode is done, penalize for remaining requests
         if done:
-            reward -= 10 * sum(r.wait_time for r in self.passenger_requests) + 1 * sum(
-                r.travel_time for r in self.passenger_requests
+            reward -= 10 * sum(
+                (self.step_count - r.creation_step) for r in self.passenger_requests
+            ) + 1 * sum(
+                r.travel_time
+                for r in self.passenger_requests
+                if r.current_elevator_index is not None
             )
         self.step_count += 1
         time.sleep(self.delay)

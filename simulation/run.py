@@ -31,6 +31,7 @@ def parse_args() -> Namespace:
         default="scan",
     )
     parser.add_argument("-s", "--seed", type=int, default=42)
+    parser.add_argument("-d", "--delay", type=float, default=1.0)
     args = parser.parse_args()
 
     args.agent_type = VALID_AGENTS[args.agent_type]
@@ -46,6 +47,7 @@ def run_simulation(args: Namespace):
         workload_scenario=None,
         elevator_capacities=args.elevator_capacities,
         seed=args.seed,
+        delay=args.delay,
     )
     observation = env.reset()
 
