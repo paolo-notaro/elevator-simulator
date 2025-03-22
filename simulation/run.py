@@ -11,10 +11,10 @@ VALID_AGENTS = {"fcfs": FCFSAgent, "scan": SCANAgent, "rl": RLAgent}
 
 def agent_type(name: str) -> type[BaseAgent]:
     """Return the agent class for the given name."""
-    try:
-        return VALID_AGENTS[name.lower()]
-    except KeyError as exc:
-        raise ArgumentTypeError(f"Invalid agent type: {name}") from exc
+    name_ = name.lower()
+    if name_ not in VALID_AGENTS:
+        raise ArgumentTypeError(f"Invalid agent type: {name}")
+    return name_
 
 
 def parse_args() -> Namespace:
@@ -27,11 +27,15 @@ def parse_args() -> Namespace:
         "-a",
         "--agent_type",
         type=agent_type,
-        choices=list(VALID_AGENTS.values()),
+        choices=list(VALID_AGENTS.keys()),
         default="scan",
     )
     parser.add_argument("-s", "--seed", type=int, default=42)
-    return parser.parse_args()
+    args = parser.parse_args()
+
+    args.agent_type = VALID_AGENTS[args.agent_type]
+
+    return args
 
 
 def run_simulation(args: Namespace):

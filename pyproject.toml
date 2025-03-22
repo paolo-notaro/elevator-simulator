@@ -4,10 +4,10 @@ version = "0.1.0"
 description = ""
 authors = ["Paolo Notaro <paolo.notaro@outlook.com>"]
 readme = "README.md"
-package-mode = false
 
-# explicitly disable implicit package discovery
-packages = []
+packages = [
+    { include = "simulation", from = "." }
+]
 
 [tool.poetry.dependencies]
 python = "^3.12"
@@ -34,6 +34,9 @@ name = "pytorch-cu121"
 url = "https://download.pytorch.org/whl/cu121"
 priority = "explicit"
 
+[tool.poetry.scripts]
+elevator-sim = "simulation.run:main"
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
@@ -45,6 +48,3 @@ profile = "black"
 [tool.black]
 line-length = 100
 target-version = ['py312']
-
-[tool.poetry.scripts]
-elevator-sim = "simulation.run:main"

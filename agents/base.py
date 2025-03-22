@@ -17,3 +17,11 @@ class BaseAgent(ABC):
     def act(self, observation: ElevatorEnvironmentObservation) -> list[ElevatorAction]:
         """Returns the actions to take given the current observation."""
         raise NotImplementedError("act method not implemented")
+
+    def __str__(self) -> str:
+        """Return the class name as a string."""
+        return self.__class__.__name__
+
+    def __repr__(self) -> str:
+        """Return the class name as a string."""
+        return self.__class__.__name__
