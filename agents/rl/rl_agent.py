@@ -23,16 +23,18 @@ class RLElevatorAgent(BaseAgent):
         use_dropout: bool = True,
         dropout_prob: float = 0.3,
         use_batch_norm: bool = True,
+        device: str = "cpu",
     ):
         super().__init__(num_floors=num_floors, num_elevators=num_elevators)
 
         self.num_actions = len(ElevatorAction)
         self.embedding_dim = embedding_dim
+        self.device = device
 
         # Observation size = position (1) + load (1) + requests_up + requests_down
         self.obs_dim = num_floors * 2 + 2
 
-        self.action_embedding = ActionEmbedding(self.num_actions, embedding_dim)
+        self.action_embedding = ActionEmbedding(self.num_actions, embedding_dim).to(device)
         self.model = ElevatorActorCriticNetwork(
             input_dim=self.obs_dim,
             embedding_dim=embedding_dim,
@@ -42,7 +44,9 @@ class RLElevatorAgent(BaseAgent):
             use_dropout=use_dropout,
             dropout_prob=dropout_prob,
             use_batch_norm=use_batch_norm,
-        )
+        ).to(device)
+        self.model.eval()
+        self.action_embedding.eval()
 
     def _prepare_obs(self, elevator_idx, observation):
         elevator_obs = observation["elevators"]
@@ -53,7 +57,7 @@ class RLElevatorAgent(BaseAgent):
         requests_down = observation["requests_down"].astype(float)
 
         obs_vec = np.concatenate([[position, load], requests_up, requests_down], axis=0)
-        return torch.tensor(obs_vec, dtype=torch.float32)
+        return torch.tensor(obs_vec, dtype=torch.float32).to(self.device)
 
     def act(self, observation) -> list[ElevatorAction]:
         """Returns a list of ElevatorAction (one for each elevator)."""
@@ -66,13 +70,13 @@ class RLElevatorAgent(BaseAgent):
 
             if prev_actions:
                 prev_action_indices = torch.tensor(prev_actions, dtype=torch.long)
-                action_embed = self.action_embedding(prev_action_indices)
+                action_embed = self.action_embedding(prev_action_indices).to(self.device)
             else:
-                action_embed = torch.zeros(self.embedding_dim)
+                action_embed = torch.zeros(self.embedding_dim).to(self.device)
 
             with torch.no_grad():
                 action_logits, _ = self.model(obs, action_embed)  # don't use critic value
-                action_idx = torch.argmax(action_logits).item()
+                action_idx = torch.argmax(action_logits).cpu().item()
 
             actions.append(ElevatorAction(action_idx))
             prev_actions.append(action_idx)
@@ -81,7 +85,7 @@ class RLElevatorAgent(BaseAgent):
 
     def load(self, path: str):
         """Loads only the actor + shared network weights from PPO-trained model."""
-        state = torch.load(path, map_location="cpu")
+        state = torch.load(path, map_location="cpu", weights_only=False)
         self.model.load_state_dict(state["model"])
         self.action_embedding.load_state_dict(state["embedding"])
         self.action_embedding.eval()

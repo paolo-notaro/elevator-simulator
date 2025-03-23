@@ -1,6 +1,7 @@
 """elevator_environment.py: Elevator environment."""
 
 import time
+from typing import TypedDict
 
 import numpy as np
 from gymnasium import Env
@@ -11,15 +12,18 @@ from environments.workload_scenario import (
     RandomPassengerWorkloadScenario,
     WorkloadScenario,
 )
-from typing import TypedDict
 
 
 class ElevatorsObs(TypedDict):
+    """Observation of the elevators."""
+
     current_floor: np.ndarray  # shape: (num_elevators,)
     current_load: np.ndarray  # shape: (num_elevators,)
 
 
 class ElevatorEnvironmentObservation(TypedDict):
+    """Observation of the elevator environment."""
+
     elevators: ElevatorsObs
     requests_up: np.ndarray  # shape: (num_floors,)
     requests_down: np.ndarray  # shape: (num_floors,)
@@ -28,10 +32,13 @@ class ElevatorEnvironmentObservation(TypedDict):
 class ElevatorEnvironment(Env):
     """The elevator environment."""
 
-    FLOOR_UP_TRAVEL_PENALTY = 2
-    FLOOR_DOWN_TRAVEL_PENALTY = 1
+    FLOOR_UP_TRAVEL_PENALTY = 0.15
+    FLOOR_DOWN_TRAVEL_PENALTY = 0.05
+    FLOOR_IDLE_PENALTY = 0.01
     SUCCESSFUL_LOAD_REWARD = 1
     SUCCESSFUL_UNLOAD_REWARD = 2
+    UNSERVED_REQUEST_PENALTY = 0.1
+    UNCOMPLETED_REQUEST_PENALTY = 0.05
 
     def __init__(
         self,
@@ -148,6 +155,8 @@ class ElevatorEnvironment(Env):
                 reward -= self.FLOOR_UP_TRAVEL_PENALTY
             elif action == ElevatorAction.DOWN:
                 reward -= self.FLOOR_DOWN_TRAVEL_PENALTY
+            elif action == ElevatorAction.IDLE:
+                reward -= self.FLOOR_IDLE_PENALTY
 
             # update elevator state (unload)
             requests_on_elevator = [
@@ -157,11 +166,7 @@ class ElevatorEnvironment(Env):
                 elevator.current_load -= request.num_passengers
                 request.current_elevator_index = None
                 request.unload_step = self.step_count
-                reward += (
-                    (self.SUCCESSFUL_UNLOAD_REWARD * self.num_floors - request.travel_time)
-                    * request.num_passengers
-                    * abs(request.end_floor - request.start_floor)
-                )
+                reward += self.SUCCESSFUL_UNLOAD_REWARD * request.num_passengers
                 self.passenger_requests.remove(request)
 
             # update elevator state (load)
@@ -176,11 +181,7 @@ class ElevatorEnvironment(Env):
                     elevator.internal_requests[request.end_floor] = True
                     request.current_elevator_index = elevator_idx
                     request.load_step = self.step_count
-                    reward += (
-                        (self.SUCCESSFUL_LOAD_REWARD * self.num_floors - request.wait_time)
-                        * request.num_passengers
-                        * abs(request.end_floor - request.start_floor)
-                    )
+                    reward += self.SUCCESSFUL_LOAD_REWARD * request.num_passengers
 
         # workload scenario appends new requests
         self.passenger_requests += self.workload_scenario.step(self.step_count)
@@ -190,14 +191,17 @@ class ElevatorEnvironment(Env):
 
         # if episode is done, penalize for remaining requests
         if done:
-            reward -= 10 * sum(
+            reward -= ElevatorEnvironment.UNSERVED_REQUEST_PENALTY * sum(
                 (self.step_count - r.creation_step)
-                for r in self.passenger_requests  # open requests not loaded
-            ) + 1 * sum(
+                for r in self.passenger_requests
+                if r.current_elevator_index is None  # open requests not loaded
+            )
+            reward -= ElevatorEnvironment.UNCOMPLETED_REQUEST_PENALTY * sum(
                 (self.step_count - r.load_step)
                 for r in self.passenger_requests
-                if r.current_elevator_index is not None
+                if r.current_elevator_index is not None  # loaded requests not unloaded
             )
+
         self.step_count += 1
         time.sleep(self.delay)
         return observation, reward, done, False, {}
@@ -206,6 +210,4 @@ class ElevatorEnvironment(Env):
         pass
 
     def _check_done(self):
-        return self.step_count >= self.max_length or (
-            self.step_count >= self.min_length and len(self.passenger_requests) == 0
-        )
+        return self.step_count >= self.max_length

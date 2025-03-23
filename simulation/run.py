@@ -1,4 +1,5 @@
 from argparse import ArgumentParser, ArgumentTypeError, Namespace
+import torch
 
 from agents.base import BaseAgent
 from agents.classical.fcfs import FCFSAgent
@@ -81,7 +82,7 @@ def run_simulation(args: Namespace):
     if not args.disable_prints:
         print(f"Simulation ended, total reward: {total_reward}")
 
-    return reward
+    return total_reward
 
 
 def main():

@@ -13,7 +13,7 @@ def parse_args():
     parser.add_argument(
         "--num_floors", type=int, default=10, help="Number of floors in the environment"
     )
-    parser.add_argument("--num_elevators", type=int, default=3, help="Number of elevators")
+    parser.add_argument("--num_elevators", type=int, default=1, help="Number of elevators")
     parser.add_argument(
         "--embedding_dim", type=int, default=16, help="Size of the action embedding"
     )
@@ -24,6 +24,7 @@ def parse_args():
     parser.add_argument("--episodes", type=int, default=100, help="Number of training episodes")
     parser.add_argument("--clip_eps", type=float, default=0.2, help="Clipping epsilon for PPO loss")
     parser.add_argument("--gamma", type=float, default=0.99, help="Discount factor")
+    parser.add_argument("--lam", type=float, default=0.95, help="GAE lambda")
     parser.add_argument(
         "--model_path",
         type=str,
@@ -37,7 +38,7 @@ def train(args: argparse.Namespace) -> None:
     """Train an RL agent using PPO and log results with MLflow."""
     os.makedirs(os.path.dirname(args.model_path), exist_ok=True)
 
-    mlflow.set_experiment("PPO_Elevator_Agent_Custom")
+    mlflow.set_experiment("PPO_Elevator_Agent")
 
     with mlflow.start_run():
         # Log hyperparameters
@@ -51,6 +52,8 @@ def train(args: argparse.Namespace) -> None:
                 "episodes": args.episodes,
                 "clip_eps": args.clip_eps,
                 "gamma": args.gamma,
+                "model_path": args.model_path,
+                "lam": args.lam,
             }
         )
 
@@ -63,6 +66,7 @@ def train(args: argparse.Namespace) -> None:
             lr=args.lr,
             clip_eps=args.clip_eps,
             gamma=args.gamma,
+            lam=args.lam,
         )
 
         # Train agent

@@ -40,11 +40,11 @@ def evaluate(args: Namespace) -> None:
         reward = run_simulation(args)
         times.append(time.time() - t_start)
         rewards.append(reward)
-        progress_bar.set_description(f"reward={reward:7d}")
+        progress_bar.set_description(f"reward={reward:8.2f}")
 
     print(
         f"\nReward min/avg/max (stdev): "
-        f"{min(rewards)}/{mean(rewards)}/{max(rewards)} ({stdev(rewards):.2f})"
+        f"{min(rewards):8.2f}/{mean(rewards):8.2f}/{max(rewards):8.2f} ({stdev(rewards):.2f})"
     )
     print(f"(Total/average) simulation time: {sum(times):.2f}/{mean(times):.2f} seconds")
 
