@@ -47,7 +47,7 @@ Use `elevator-sim`:
 
 ```
 > elevator-sim --help
-usage: elevator simulation [-h] [-f NUM_FLOORS] [-e NUM_ELEVATORS] [-c ELEVATOR_CAPACITIES] [-a {fcfs,scan,rl}] [-s SEED]
+usage: elevator simulation [-h] [-f NUM_FLOORS] [-e NUM_ELEVATORS] [-c ELEVATOR_CAPACITIES] [-a {fcfs,scan,rl}] [-s SEED] [-d DELAY] [--model-path MODEL_PATH]
 
 options:
   -h, --help            show this help message and exit
@@ -56,6 +56,8 @@ options:
   -c ELEVATOR_CAPACITIES, --elevator_capacities ELEVATOR_CAPACITIES
   -a {fcfs,scan,rl}, --agent_type {fcfs,scan,rl}
   -s SEED, --seed SEED
+  -d DELAY, --delay DELAY
+  --model-path MODEL_PATH
   ```
 
 # ## 🚀 Training an Elevator RL Agent (PPO) using MLflow
@@ -66,9 +68,11 @@ This project leverages PPO (Proximal Policy Optimization) along with MLflow for 
 train_rl_agent \
     --num_floors 10 \
     --num_elevators 3 \
-    --spawn_prob 0.2 \
-    --total_timesteps 100000 \
-    --checkpoint_freq 20000 \
+    --embedding_dim 16 \
+    --episodes 500
+    --lr 3e-4 \
+    --clip_eps 0.2 \
+    --gamma 0.99 \
     --model_path models/ppo_agent_full.pth
 ```
 
@@ -76,4 +80,10 @@ Track the experiment in MLflow UI:
 
 ```
 poetry run mlflow ui
+```
+
+## Evaluate an agent
+
+```
+python -m simulation.evaluate -n 100 -a rl
 ```
