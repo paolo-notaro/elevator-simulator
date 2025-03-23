@@ -62,7 +62,10 @@ class PPOTrainer:
         )
 
         # Model, optimizer, and action embedding
-        self.optimizer = optim.Adam(self.model.parameters(), lr=lr)
+        self.optimizer = optim.Adam(
+            list(self.agent.model.parameters()) + list(self.agent.action_embedding.parameters()),
+            lr=lr,
+        )
 
         # running reward average
         self.smoothed_reward = None  # Exponential average
@@ -97,11 +100,11 @@ class PPOTrainer:
 
                 if prev_actions:
                     prev_tensor = torch.tensor(prev_actions, dtype=torch.long, device=self.device)
-                    a_embed = self.embedding(prev_tensor).unsqueeze(0)
+                    a_embed = self.agent.action_embedding(prev_tensor).unsqueeze(0)
                 else:
                     a_embed = torch.zeros((1, self.embedding_dim), device=self.device)
 
-                logits, value = self.model(obs_tensor, a_embed)
+                logits, value = self.agent.model(obs_tensor, a_embed)
                 dist = Categorical(logits=logits)
                 action = dist.sample()
                 log_prob = dist.log_prob(action)
@@ -137,10 +140,10 @@ class PPOTrainer:
             trajectory = trajectories[idx]
             with torch.no_grad():
                 next_obs_tensor = self.preprocess_observation(idx, obs).to(self.device).unsqueeze(0)
-                next_a_embed = self.embedding(
+                next_a_embed = self.agent.action_embedding(
                     torch.tensor([trajectory["actions"][-1]], device=self.device)
                 ).unsqueeze(0)
-                _, next_value = self.model(next_obs_tensor, next_a_embed)
+                _, next_value = self.agent.model(next_obs_tensor, next_a_embed)
                 next_value = next_value.squeeze(0)
 
             values_tensor = torch.stack(trajectory["values"]).to(self.device)
@@ -153,7 +156,7 @@ class PPOTrainer:
             obs_batch = torch.cat(trajectory["obs"])
             embed_batch = torch.cat(trajectory["a_embed"])
 
-            logits, _ = self.model(obs_batch, embed_batch)
+            logits, _ = self.agent.model(obs_batch, embed_batch)
             dist = Categorical(logits=logits)
             log_probs_new = dist.log_prob(actions)
             ratio = torch.exp(log_probs_new - log_probs_old)

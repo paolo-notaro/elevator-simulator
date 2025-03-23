@@ -1,5 +1,4 @@
 from argparse import ArgumentParser, ArgumentTypeError, Namespace
-import torch
 
 from agents.base import BaseAgent
 from agents.classical.fcfs import FCFSAgent
