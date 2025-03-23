@@ -3,10 +3,10 @@ from argparse import ArgumentParser, ArgumentTypeError, Namespace
 from agents.base import BaseAgent
 from agents.classical.fcfs import FCFSAgent
 from agents.classical.scan import SCANAgent
-from agents.rl.rl_agent import RLAgent
+from agents.rl import RLElevatorAgent
 from environments.elevator_environment import ElevatorEnvironment
 
-VALID_AGENTS = {"fcfs": FCFSAgent, "scan": SCANAgent, "rl": RLAgent}
+VALID_AGENTS = {"fcfs": FCFSAgent, "scan": SCANAgent, "rl": RLElevatorAgent}
 
 
 def agent_type(name: str) -> type[BaseAgent]:
@@ -55,6 +55,8 @@ def run_simulation(args: Namespace):
         raise ValueError("FCFS and SCAN agents only support single elevators")
 
     agent = args.agent_type(num_elevators=args.num_elevators, num_floors=args.num_floors)
+    if args.agent_type == RLElevatorAgent:
+        agent.load("models/ppo_agent_full.pth")
 
     observation, _ = env.reset()
     done = False

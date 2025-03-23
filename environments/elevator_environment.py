@@ -1,3 +1,5 @@
+"""elevator_environment.py: Elevator environment."""
+
 import time
 
 import numpy as np
@@ -9,8 +11,18 @@ from environments.workload_scenario import (
     RandomPassengerWorkloadScenario,
     WorkloadScenario,
 )
+from typing import TypedDict
 
-ElevatorEnvironmentObservation = Dict
+
+class ElevatorsObs(TypedDict):
+    current_floor: np.ndarray  # shape: (num_elevators,)
+    current_load: np.ndarray  # shape: (num_elevators,)
+
+
+class ElevatorEnvironmentObservation(TypedDict):
+    elevators: ElevatorsObs
+    requests_up: np.ndarray  # shape: (num_floors,)
+    requests_down: np.ndarray  # shape: (num_floors,)
 
 
 class ElevatorEnvironment(Env):
@@ -84,34 +96,33 @@ class ElevatorEnvironment(Env):
         return requests_up, requests_down
 
     def _get_observation_space(self):
-        elevator_space = Dict(
+        return Dict(
             {
-                "current_floor": MultiDiscrete([self.num_floors] * self.num_elevators),
-                "blocked": MultiBinary(self.num_elevators),
-                "current_load": MultiDiscrete([cap + 1 for cap in self.elevator_capacities]),
-            }
-        )
-
-        observation_space = Dict(
-            {
-                "elevators": elevator_space,
+                "elevators": Dict(
+                    {
+                        "current_floor": MultiDiscrete([self.num_floors] * self.num_elevators),
+                        "current_load": MultiDiscrete(
+                            [cap + 1 for cap in self.elevator_capacities]
+                        ),
+                    }
+                ),
                 "requests_up": MultiBinary(self.num_floors),
                 "requests_down": MultiBinary(self.num_floors),
             }
         )
 
-        return observation_space
-
     def _get_observation(self):
+        elevators = {
+            "current_floor": np.array([e.current_floor for e in self.elevators]),
+            "current_load": np.array([e.current_load for e in self.elevators]),
+        }
 
         requests_up, requests_down = self._get_requests_up_down()
+
         return {
-            "elevators": {
-                "current_floor": np.array([e.current_floor for e in self.elevators]),
-                "current_load": np.array([e.current_load for e in self.elevators]),
-            },
-            "requests_up": (requests_up != 0).copy(),  # convert to binary
-            "requests_down": (requests_down != 0).copy(),  # convert to binary
+            "elevators": elevators,
+            "requests_up": (requests_up != 0),
+            "requests_down": (requests_down != 0),
         }
 
     def reset(self, seed: int = None, options: dict = None):
@@ -180,9 +191,10 @@ class ElevatorEnvironment(Env):
         # if episode is done, penalize for remaining requests
         if done:
             reward -= 10 * sum(
-                (self.step_count - r.creation_step) for r in self.passenger_requests
+                (self.step_count - r.creation_step)
+                for r in self.passenger_requests  # open requests not loaded
             ) + 1 * sum(
-                r.travel_time
+                (self.step_count - r.load_step)
                 for r in self.passenger_requests
                 if r.current_elevator_index is not None
             )

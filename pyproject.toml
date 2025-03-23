@@ -6,7 +6,8 @@ authors = ["Paolo Notaro <paolo.notaro@outlook.com>"]
 readme = "README.md"
 
 packages = [
-    { include = "simulation", from = "." }
+    { include = "simulation", from = "." },
+    { include = "training", from = "." },
 ]
 
 [tool.poetry.dependencies]
@@ -15,6 +16,7 @@ gymnasium = "^1.1.1"
 torch = {version = "^2.5.1+cu121", source = "pytorch-cu121"}
 torchvision = {version = "^0.20.1+cu121", source = "pytorch-cu121"}
 torchaudio = {version = "^2.5.1+cu121", source = "pytorch-cu121"}
+mlflow = "^2.21.0"
 
 
 [tool.poetry.group.dev.dependencies]
@@ -37,6 +39,7 @@ priority = "explicit"
 
 [tool.poetry.scripts]
 elevator-sim = "simulation.run:main"
+train_rl_agent = "training.train_rl:main"
 
 [build-system]
 requires = ["poetry-core"]

@@ -4,6 +4,7 @@ import numpy as np
 from agents.base import BaseAgent
 from environments.elevator import ElevatorAction
 from environments.elevator_environment import ElevatorEnvironmentObservation
+from agents.utils import unpack_flat_observation
 
 
 class SCANDirection(Enum):
@@ -22,6 +23,11 @@ class SCANAgent(BaseAgent):
         self.direction = ElevatorAction.UP  # Start moving UP initially
 
     def act(self, observation: ElevatorEnvironmentObservation) -> list[ElevatorAction]:
+        if isinstance(observation, np.ndarray):  # SB3-style flat observation
+            observation = unpack_flat_observation(
+                observation, num_floors=self.num_floors, num_elevators=self.num_elevators
+            )
+
         elevator_position = observation["elevators"]["current_floor"][0]
         requests_up = observation["requests_up"]
         requests_down = observation["requests_down"]

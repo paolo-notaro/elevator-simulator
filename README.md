@@ -57,3 +57,23 @@ options:
   -a {fcfs,scan,rl}, --agent_type {fcfs,scan,rl}
   -s SEED, --seed SEED
   ```
+
+# ## 🚀 Training an Elevator RL Agent (PPO) using MLflow
+
+This project leverages PPO (Proximal Policy Optimization) along with MLflow for detailed experiment tracking.
+
+```
+train_rl_agent \
+    --num_floors 10 \
+    --num_elevators 3 \
+    --spawn_prob 0.2 \
+    --total_timesteps 100000 \
+    --checkpoint_freq 20000 \
+    --model_path models/ppo_agent_full.pth
+```
+
+Track the experiment in MLflow UI:
+
+```
+poetry run mlflow ui
+```
