@@ -69,7 +69,7 @@ train_rl_agent \
     --num_floors 10 \
     --num_elevators 3 \
     --embedding_dim 16 \
-    --episodes 500
+    --episodes 500 \
     --lr 3e-4 \
     --clip_eps 0.2 \
     --gamma 0.99 \

@@ -4,9 +4,10 @@ import torch
 
 
 def compute_gae(
-    rewards: list[torch.tensor],
-    values: list[torch.tensor],
-    next_value: float,
+    rewards: list[torch.Tensor],
+    values: list[torch.Tensor],
+    next_value: torch.Tensor,
+    dones: list[bool],
     gamma: float,
     lam: float,
 ):
@@ -23,11 +24,16 @@ def compute_gae(
         returns: (T,) tensor
     """
     T = len(rewards)
-    advantages = torch.zeros(T).to(values.device)
+    advantages = torch.zeros(T, device=values[0].device)
     last_adv = 0
     for t in reversed(range(T)):
-        delta = rewards[t] + gamma * next_value - values[t]
-        advantages[t] = last_adv = delta + gamma * lam * last_adv
-        next_value = values[t]
+        if t == T - 1:
+            next_non_terminal = 1.0 - dones[t]
+            next_values = next_value
+        else:
+            next_non_terminal = 1.0 - dones[t]
+            next_values = values[t + 1]
+        delta = rewards[t] + gamma * next_values * next_non_terminal - values[t]
+        advantages[t] = last_adv = delta + gamma * lam * next_non_terminal * last_adv
     returns = advantages + values
     return advantages, returns
