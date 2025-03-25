@@ -55,7 +55,10 @@ class ElevatorEnvironment(Env):
         self.num_floors = num_floors
         if workload_scenario is None:
             workload_scenario = RandomPassengerWorkloadScenario(
-                num_floors, spawn_prob=0.2, start_floor_probs=0.1, end_floor_probs=0.1
+                num_floors,
+                spawn_prob=0.2,
+                start_floor_probs=[1 / num_floors] * num_floors,
+                end_floor_probs=[1 / num_floors] * num_floors,
             )
         self.workload_scenario = workload_scenario
         if isinstance(elevator_capacities, int):
@@ -89,6 +92,12 @@ class ElevatorEnvironment(Env):
         self.observation_space = self._get_observation_space()
 
         self.step_count = 0
+        self.served_requests = 0
+
+    @property
+    def total_requests(self) -> int:
+        """Total number of requests."""
+        return len(self.passenger_requests) + self.served_requests
 
     def _get_requests_up_down(self):
         requests_up = np.zeros(self.num_floors)
@@ -138,12 +147,13 @@ class ElevatorEnvironment(Env):
         for elevator in self.elevators:
             elevator.reset()
         self.passenger_requests = []
+        self.served_requests = 0
         return self._get_observation(), {}
 
     def step(self, actions: list[ElevatorAction]):
         """Perform an action on the environment."""
 
-        reward = 0
+        reward = 0.0
 
         for elevator_idx, (elevator, action) in enumerate(zip(self.elevators, actions)):
 
@@ -168,6 +178,7 @@ class ElevatorEnvironment(Env):
                 request.unload_step = self.step_count
                 reward += self.SUCCESSFUL_UNLOAD_REWARD * request.num_passengers
                 self.passenger_requests.remove(request)
+                self.served_requests += 1
 
             # update elevator state (load)
             requests_on_floor = [

@@ -45,12 +45,9 @@ class PPOTrainer:
             num_floors=num_floors,
             num_elevators=num_elevators,
             max_length=1000,
-            workload_scenario=RandomPassengerWorkloadScenario(
-                num_floors,
-                spawn_prob=0.2,
-                start_floor_probs=[1 / num_floors] * num_floors,
-                end_floor_probs=[1 / num_floors] * num_floors,
-            ),
+            workload_scenario=None,
+            elevator_capacities=8,
+            seed=42,
             delay=0,  # no delay for training
         )
 
@@ -60,7 +57,10 @@ class PPOTrainer:
             num_elevators=num_elevators,
             embedding_dim=embedding_dim,
             hidden_dim=hidden_dim,
+            num_layers=3,
             device=self.device,
+            use_batch_norm=False,
+            use_dropout=False,
         )
 
         # Model, optimizer, and action embedding
@@ -85,7 +85,7 @@ class PPOTrainer:
         """Train the agent for a single episode."""
         obs, _ = self.env.reset()
         done = False
-        total_reward = 0
+        total_reward = 0.0
         dones = []
         # Buffer per-elevator
         trajectories = [
@@ -98,15 +98,15 @@ class PPOTrainer:
             prev_actions = []
 
             for idx in range(self.num_elevators):
-                obs_tensor = self.preprocess_observation(idx, obs).to(self.device).unsqueeze(0)
+                obs_tensor = self.agent.prepare_observation(idx, obs).to(self.device).unsqueeze(0)
 
                 if prev_actions:
                     prev_tensor = torch.tensor(prev_actions, dtype=torch.long, device=self.device)
-                    a_embed = self.agent.action_embedding(prev_tensor).unsqueeze(0)
+                    action_embed = self.agent.action_embedding(prev_tensor).unsqueeze(0)
                 else:
-                    a_embed = torch.zeros((1, self.embedding_dim), device=self.device)
+                    action_embed = torch.zeros((1, self.embedding_dim), device=self.device)
 
-                logits, value = self.agent.model(obs_tensor, a_embed)
+                logits, value = self.agent.model(obs_tensor, action_embed)
                 dist = Categorical(logits=logits)
                 action = dist.sample()
                 log_prob = dist.log_prob(action)
@@ -117,7 +117,7 @@ class PPOTrainer:
                 # Save trajectory step
                 trajectory = trajectories[idx]
                 trajectory["obs"].append(obs_tensor)
-                trajectory["a_embed"].append(a_embed)
+                trajectory["a_embed"].append(action_embed)
                 trajectory["actions"].append(action)
                 trajectory["log_probs"].append(log_prob)
                 trajectory["values"].append(value.squeeze(0))  # scalar
@@ -141,14 +141,23 @@ class PPOTrainer:
         policy_loss = 0
         elevator_entropies = []
         elevator_advantages = []
+        prev_actions = []
         for idx in range(self.num_elevators):
             trajectory = trajectories[idx]
             with torch.no_grad():
-                next_obs_tensor = self.preprocess_observation(idx, obs).to(self.device).unsqueeze(0)
-                next_a_embed = self.agent.action_embedding(
-                    torch.tensor([trajectory["actions"][-1]], device=self.device)
-                ).unsqueeze(0)
-                _, next_value = self.agent.model(next_obs_tensor, next_a_embed)
+                obs_tensor = self.agent.prepare_observation(idx, obs).to(self.device).unsqueeze(0)
+
+                # compose previous action (other elevators, same timestep) embedding
+                if prev_actions:
+                    prev_tensor = torch.tensor(prev_actions, dtype=torch.long, device=self.device)
+                    action_embed = self.agent.action_embedding(prev_tensor).unsqueeze(0)
+                else:
+                    action_embed = torch.zeros((1, self.embedding_dim), device=self.device)
+
+                # compute elevator action and critic value
+                action_logits, next_value = self.agent.model(obs_tensor, action_embed)
+                action_idx = torch.argmax(action_logits).cpu().item()
+                prev_actions.append(action_idx)
                 next_value = next_value.squeeze(0)
 
             values_tensor = torch.stack(trajectory["values"]).to(self.device)
@@ -198,11 +207,15 @@ class PPOTrainer:
 
         return total_reward
 
-    def train(self, episodes: int = 100):
+    def train(
+        self, episodes: int = 1000, checkpoint_every: int = 100, checkpoint_all: bool = False
+    ):
         """Train the agent for a given number of episodes."""
         self.agent.model.train()
         self.agent.action_embedding.train()
+
         progress = trange(episodes, desc="Training", leave=True)
+        best_smoothed_reward = -np.inf
         for self.episode_count in progress:
             reward = self.train_step()
 
@@ -213,11 +226,19 @@ class PPOTrainer:
             )
 
             progress.set_description(
-                f"Episode {self.episode_count} | R: {reward:7.2f} | "
+                f"Episode {self.episode_count + 1:4d} | R: {reward:7.2f} | "
                 f"Smoothed R: {self.smoothed_reward:7.2f}"
             )
             mlflow.log_metric("episode_reward", reward, step=self.episode_count)
             mlflow.log_metric("smoothed_reward", self.smoothed_reward, step=self.episode_count)
+
+            if (self.episode_count + 1) % checkpoint_every == 0:
+                if self.smoothed_reward > best_smoothed_reward or checkpoint_all:
+                    print("Saving best model...")
+                    self.agent.save(
+                        f"models/{mlflow.active_run().info.run_name}_{self.episode_count + 1}.pth"
+                    )
+                    best_smoothed_reward = self.smoothed_reward
 
         self.agent.model.eval()
         self.agent.action_embedding.eval()

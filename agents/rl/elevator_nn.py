@@ -21,11 +21,15 @@ class ElevatorActorCriticNetwork(nn.Module):
         num_actions: int = 3,  # ElevatorAction.UP, DOWN, IDLE
     ):
         super().__init__()
-        self.input_norm = nn.LayerNorm(input_dim + embedding_dim)
 
-        layers = [nn.Linear(input_dim + embedding_dim, hidden_dim)]
         if use_batch_norm:
-            layers.append(nn.LayerNorm(hidden_dim))
+            layers = [
+                nn.LayerNorm(input_dim + embedding_dim),
+                nn.Linear(input_dim + embedding_dim, hidden_dim),
+                nn.LayerNorm(hidden_dim),
+            ]
+        else:
+            layers = [nn.Linear(input_dim + embedding_dim, hidden_dim)]
         layers.append(nn.ReLU())
 
         for _ in range(num_layers - 1):
@@ -41,8 +45,20 @@ class ElevatorActorCriticNetwork(nn.Module):
         self.actor_head = nn.Linear(hidden_dim, num_actions)
         self.critic_head = nn.Linear(hidden_dim, 1)
 
-    def forward(self, obs: torch.Tensor, action_embed: torch.Tensor):
+    def forward(
+        self, obs: torch.Tensor, action_embed: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """
+        Forward pass of the network.
+        Args:
+            obs: Observation tensor. Must be of size (batch_size, obs_dim).
+            action_embed: Action embedding tensor. Must be of size (batch_size, embedding_dim).
+        Returns:
+            Tuple of action logits and critic value.
+
+            action_logits: Tensor of size (batch_size, num_actions).
+            critic_value: Tensor of size (batch_size, 1).
+        """
         x = torch.cat([obs, action_embed], dim=-1)
-        x = self.input_norm(x)
         x = self.shared_net(x)
         return self.actor_head(x), self.critic_head(x)

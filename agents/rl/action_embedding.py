@@ -23,9 +23,17 @@ class ActionEmbedding(nn.Module):
         super().__init__()
         self.embedding = nn.Embedding(num_actions, embedding_dim)
 
-    def forward(self, action_indices: list[int]) -> torch.Tensor:
+    def forward(self, action_indices: torch.Tensor) -> torch.Tensor:
         """
         Forward pass of the action embedding model.
+
+        Args:
+            action_indices: torch.tensor of shape [num_prev_actions] representing the sequence of
+              actions to embed.
+
+        Returns:
+            torch.tensor of shape [embedding_dim] representing the aggregated embedding of the
+              actions.
         """
         embedded = self.embedding(action_indices)
         aggregated = embedded.mean(dim=0)

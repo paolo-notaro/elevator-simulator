@@ -31,8 +31,19 @@ def parse_args():
     parser.add_argument(
         "--model_path",
         type=str,
-        default="models/ppo_agent_full.pth",
-        help="Where to save model",
+        default="models/{run_name}_full.pth",
+        help="Where to save model checkpoints",
+    )
+    parser.add_argument(
+        "--checkpoint-every",
+        type=int,
+        default=10,
+        help="Checkpoint model every n episodes, if model improves",
+    )
+    parser.add_argument(
+        "--checkpoint-all",
+        action="store_true",
+        help="Checkpoint even if performance does not improve",
     )
     return parser.parse_args()
 
@@ -57,6 +68,7 @@ def train(args: argparse.Namespace) -> None:
                 "gamma": args.gamma,
                 "model_path": args.model_path,
                 "lam": args.lam,
+                "entropy_coef": args.entropy_coef,
             }
         )
 
@@ -74,12 +86,17 @@ def train(args: argparse.Namespace) -> None:
         )
 
         # Train agent
-        trainer.train(args.episodes)
+        trainer.train(
+            args.episodes,
+            checkpoint_every=args.checkpoint_every,
+            checkpoint_all=args.checkpoint_all,
+        )
 
         # Save model
-        trainer.agent.save(f"{args.model_path}")
-        mlflow.log_artifact(args.model_path)
-        print(f"Model saved to {args.model_path}")
+        final_model_path = args.model_path.format(run_name=mlflow.active_run().info.run_name)
+        trainer.agent.save(final_model_path)
+        mlflow.log_artifact(final_model_path)
+        print(f"Final model saved to {final_model_path}.")
 
 
 def main():
