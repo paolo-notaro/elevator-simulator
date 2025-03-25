@@ -19,14 +19,15 @@ class PPOTrainer:
 
     def __init__(
         self,
-        num_floors=10,
-        num_elevators=3,
-        embedding_dim=16,
-        hidden_dim=128,
-        lr=3e-4,
-        clip_eps=0.2,
-        gamma=0.99,
-        lam=0.95,
+        num_floors: int = 10,
+        num_elevators: int = 3,
+        embedding_dim: int = 16,
+        hidden_dim: int = 128,
+        lr: float = 3e-4,
+        clip_eps: float = 0.2,
+        gamma: float = 0.99,
+        lam: float = 0.95,
+        entropy_coef: float = 0.01,
     ):
         """Initialize the PPO trainer."""
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -37,6 +38,7 @@ class PPOTrainer:
         self.gamma = gamma
         self.clip_eps = clip_eps
         self.lam = lam
+        self.entropy_coef = entropy_coef
         self.episode_count = 0
 
         self.env = ElevatorEnvironment(
@@ -84,7 +86,7 @@ class PPOTrainer:
         obs, _ = self.env.reset()
         done = False
         total_reward = 0
-
+        dones = []
         # Buffer per-elevator
         trajectories = [
             {"obs": [], "a_embed": [], "actions": [], "log_probs": [], "rewards": [], "values": []}
@@ -123,6 +125,7 @@ class PPOTrainer:
             env_actions = [ElevatorAction(a) for a in actions]
             next_obs, reward, done, _, _ = self.env.step(env_actions)
             total_reward += reward
+            dones.append(done)
 
             # Shared reward — add same reward to each elevator
             for trajectory in trajectories:
@@ -136,6 +139,8 @@ class PPOTrainer:
 
         # Post-episode update
         policy_loss = 0
+        elevator_entropies = []
+        elevator_advantages = []
         for idx in range(self.num_elevators):
             trajectory = trajectories[idx]
             with torch.no_grad():
@@ -148,7 +153,12 @@ class PPOTrainer:
 
             values_tensor = torch.stack(trajectory["values"]).to(self.device)
             advantages, _ = compute_gae(
-                trajectory["rewards"], values_tensor, next_value, self.gamma, self.lam
+                rewards=trajectory["rewards"],
+                values=values_tensor,
+                next_value=next_value,
+                dones=dones,
+                gamma=self.gamma,
+                lam=self.lam,
             )
 
             log_probs_old = torch.stack(trajectory["log_probs"])
@@ -160,11 +170,17 @@ class PPOTrainer:
             dist = Categorical(logits=logits)
             log_probs_new = dist.log_prob(actions)
             ratio = torch.exp(log_probs_new - log_probs_old)
+            entropy = dist.entropy().mean()
 
             adv = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+            # adv = torch.clamp(adv, -5.0, 5.0)
+
             clip_adv = torch.clamp(ratio, 1 - self.clip_eps, 1 + self.clip_eps) * adv
 
-            policy_loss += -torch.min(ratio * adv, clip_adv).mean()
+            policy_loss += -torch.min(ratio * adv, clip_adv).mean() - self.entropy_coef * entropy
+
+            elevator_entropies.append(entropy.item())
+            elevator_advantages.append(adv.mean().item())
 
         policy_loss /= self.num_elevators
 
@@ -172,6 +188,10 @@ class PPOTrainer:
         self.optimizer.zero_grad()
         policy_loss.backward()
         mlflow.log_metric("policy_loss", policy_loss.item(), step=self.episode_count)
+        mlflow.log_metric(
+            "mean_elevator_entropy", np.mean(elevator_entropies), step=self.episode_count
+        )
+        mlflow.log_metric("mean_advantage", np.mean(elevator_advantages), step=self.episode_count)
 
         # update step
         self.optimizer.step()
@@ -188,14 +208,13 @@ class PPOTrainer:
 
             if self.smoothed_reward is None:
                 self.smoothed_reward = reward
-            else:
-                self.smoothed_reward = (
-                    self.smoothing_alpha * reward
-                    + (1 - self.smoothing_alpha) * self.smoothed_reward
-                )
+            self.smoothed_reward = (
+                self.smoothing_alpha * reward + (1 - self.smoothing_alpha) * self.smoothed_reward
+            )
 
             progress.set_description(
-                f"Episode {self.episode_count} | R: {reward:7.2f} | Smoothed R: {self.smoothed_reward:7.2f}"
+                f"Episode {self.episode_count} | R: {reward:7.2f} | "
+                f"Smoothed R: {self.smoothed_reward:7.2f}"
             )
             mlflow.log_metric("episode_reward", reward, step=self.episode_count)
             mlflow.log_metric("smoothed_reward", self.smoothed_reward, step=self.episode_count)

@@ -26,6 +26,9 @@ def parse_args():
     parser.add_argument("--gamma", type=float, default=0.99, help="Discount factor")
     parser.add_argument("--lam", type=float, default=0.95, help="GAE lambda")
     parser.add_argument(
+        "--entropy_coef", type=float, default=0.01, help="Coefficient for entropy loss"
+    )
+    parser.add_argument(
         "--model_path",
         type=str,
         default="models/ppo_agent_full.pth",
@@ -67,6 +70,7 @@ def train(args: argparse.Namespace) -> None:
             clip_eps=args.clip_eps,
             gamma=args.gamma,
             lam=args.lam,
+            entropy_coef=args.entropy_coef,
         )
 
         # Train agent
