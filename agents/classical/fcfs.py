@@ -1,6 +1,8 @@
 """fcfs.py: First-Come, First-Served Elevator Agent."""
 
 import numpy as np
+from typing import Any
+
 from agents.base import BaseAgent
 from environments.elevator import ElevatorAction
 from environments.elevator_environment import ElevatorEnvironmentObservation
@@ -40,7 +42,9 @@ class FCFSAgent(BaseAgent):
 
         self.request_queue.extend(new_requests)
 
-    def act(self, observation: ElevatorEnvironmentObservation) -> list[ElevatorAction]:
+    def act(
+        self, observation: ElevatorEnvironmentObservation
+    ) -> tuple[list[ElevatorAction], dict[str, Any]]:
         """Act based on the observation."""
         if isinstance(observation, np.ndarray):  # SB3-style flat observation
             observation = unpack_flat_observation(
@@ -61,13 +65,13 @@ class FCFSAgent(BaseAgent):
             next_floor = self.pending_request
         else:
             # No requests, go IDLE
-            return [ElevatorAction.IDLE]
+            return [ElevatorAction.IDLE], {}
 
         # if floor is above, go UP, else go DOWN
         current_floor = observation["elevators"]["current_floor"][0]
         if next_floor > current_floor:
-            return [ElevatorAction.UP]
+            return [ElevatorAction.UP], {}
         if next_floor < current_floor:
-            return [ElevatorAction.DOWN]
+            return [ElevatorAction.DOWN], {}
         self.pending_request = None
-        return [ElevatorAction.IDLE]
+        return [ElevatorAction.IDLE], {}

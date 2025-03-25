@@ -8,7 +8,6 @@ from tqdm import trange
 import mlflow
 
 from environments.elevator_environment import ElevatorEnvironment
-from environments.workload_scenario import RandomPassengerWorkloadScenario
 from environments.elevator import ElevatorAction
 from agents.rl.rl_agent import RLElevatorAgent
 from training.gae_utils import compute_gae
