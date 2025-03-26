@@ -73,9 +73,6 @@ class ElevatorEnvironment(Env):
         self.delay = delay
         self.min_length = min_length
         self.max_length = max_length
-        if seed is None:
-            seed = np.random.randint(0, 1000)
-        np.random.seed(seed)
 
         # create elevators
         self.elevators = []
@@ -93,6 +90,8 @@ class ElevatorEnvironment(Env):
 
         self.step_count = 0
         self.served_requests = 0
+
+        self.reset(seed=seed)
 
     @property
     def total_requests(self) -> int:
@@ -148,6 +147,9 @@ class ElevatorEnvironment(Env):
             elevator.reset()
         self.passenger_requests = []
         self.served_requests = 0
+        if seed is None:
+            seed = np.random.randint(0, 1000)
+        np.random.seed(seed)
         return self._get_observation(), {}
 
     def step(self, actions: list[ElevatorAction]):
@@ -212,9 +214,10 @@ class ElevatorEnvironment(Env):
                 for r in self.passenger_requests
                 if r.current_elevator_index is not None  # loaded requests not unloaded
             )
+        else:
+            self.step_count += 1
+            time.sleep(self.delay)
 
-        self.step_count += 1
-        time.sleep(self.delay)
         return observation, reward, done, False, {}
 
     def render(self):

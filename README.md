@@ -60,7 +60,7 @@ options:
   --model-path MODEL_PATH
   ```
 
-# ## 🚀 Training an Elevator RL Agent (PPO) using MLflow
+# 🚀 Training an Elevator RL Agent (PPO) using MLflow
 
 This project leverages PPO (Proximal Policy Optimization) along with MLflow for detailed experiment tracking.
 
@@ -86,4 +86,10 @@ poetry run mlflow ui
 
 ```
 python -m simulation.evaluate -n 100 -a rl
+```
+
+## Pre-train an agent with imitation learning
+
+```
+python -m training.imitation
 ```
