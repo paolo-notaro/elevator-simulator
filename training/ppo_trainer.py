@@ -18,6 +18,7 @@ class PPOTrainer:
 
     def __init__(
         self,
+        load_model_path: str = None,
         num_floors: int = 10,
         num_elevators: int = 3,
         embedding_dim: int = 16,
@@ -29,6 +30,7 @@ class PPOTrainer:
         entropy_coef: float = 0.01,
     ):
         """Initialize the PPO trainer."""
+        self.load_model_path = load_model_path
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.num_floors = num_floors
         self.num_elevators = num_elevators
@@ -61,6 +63,8 @@ class PPOTrainer:
             use_batch_norm=False,
             use_dropout=False,
         )
+        if load_model_path is not None:
+            self.agent.load(load_model_path)
 
         # Model, optimizer, and action embedding
         self.optimizer = optim.Adam(

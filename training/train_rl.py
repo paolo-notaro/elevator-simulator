@@ -28,8 +28,9 @@ def parse_args():
     parser.add_argument(
         "--entropy_coef", type=float, default=0.01, help="Coefficient for entropy loss"
     )
+    parser.add_argument("--load-model-path", type=str, default=None, required=False)
     parser.add_argument(
-        "--model_path",
+        "--out-model_path",
         type=str,
         default="models/{run_name}_full.pth",
         help="Where to save model checkpoints",
@@ -50,7 +51,7 @@ def parse_args():
 
 def train(args: argparse.Namespace) -> None:
     """Train an RL agent using PPO and log results with MLflow."""
-    os.makedirs(os.path.dirname(args.model_path), exist_ok=True)
+    os.makedirs(os.path.dirname(args.out_model_path), exist_ok=True)
 
     mlflow.set_experiment("PPO_Elevator_Agent")
 
@@ -66,7 +67,8 @@ def train(args: argparse.Namespace) -> None:
                 "episodes": args.episodes,
                 "clip_eps": args.clip_eps,
                 "gamma": args.gamma,
-                "model_path": args.model_path,
+                "load_model:path": args.load_model_path,
+                "out_model_path": args.out_model_path,
                 "lam": args.lam,
                 "entropy_coef": args.entropy_coef,
             }
@@ -74,6 +76,7 @@ def train(args: argparse.Namespace) -> None:
 
         # Create and initialize trainer and agent
         trainer = PPOTrainer(
+            load_model_path=args.load_model_path,
             num_floors=args.num_floors,
             num_elevators=args.num_elevators,
             embedding_dim=args.embedding_dim,
