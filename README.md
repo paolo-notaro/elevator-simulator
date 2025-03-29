@@ -102,5 +102,5 @@ episodes=1000, scenario= random workload scenario with default parameters
 * FCFS: -1521.57 / -533.60 / 114.87 +- 263.92 / 0.19
 * SCAN:  397.95 / 495.36 / 594.15 +- 39.50 / 0.18
 * LOOK:  439.85 / 534.41 /  631.33 +- 37.01 / 0.18
-* Best Imitation Learning model (teacher=LOOK, loss<0.2):  91.53/  528.36/  630.23 +- 41.63 / 0.77
+* Best Imitation Learning model (teacher=LOOK, loss<0.2):  432.69/  529.16/  626.99 +- 36.50 / 0.80
 * Best RL Model (after imitation teacher=LOOK, loss=0.2): 395.91/  503.18/  587.33 +- 40.07 / 0.65
