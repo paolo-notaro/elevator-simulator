@@ -43,8 +43,16 @@ def parse_args() -> Namespace:
     return args
 
 
-def run_simulation(args: Namespace):
-    """Run a simulation of the elevator environment."""
+def run_simulation(args: Namespace) -> tuple[float, int, float, float]:
+    """Run a simulation of the elevator environment.
+
+    Args:
+        args: Command-line arguments.
+
+    Returns:
+        A tuple containing the total reward, the number of served requests,
+        the total wait time, and the total travel time.
+    """
     env = ElevatorEnvironment(
         num_elevators=args.num_elevators,
         num_floors=args.num_floors,
@@ -54,6 +62,7 @@ def run_simulation(args: Namespace):
         seed=args.seed,
         delay=args.delay,
     )
+
     observation = env.reset()
 
     if args.num_elevators > 1 and args.agent_type in (FCFSAgent, SCANAgent, LOOKAgent):
@@ -82,6 +91,8 @@ def run_simulation(args: Namespace):
     observation, _ = env.reset()
     done = False
     total_reward = 0
+    total_wait_time = 0
+    total_travel_time = 0
 
     while not done:
         if not args.disable_prints:
@@ -89,12 +100,14 @@ def run_simulation(args: Namespace):
             print("Observation:", observation)
         actions, inference_infos = agent.act(observation)
 
-        observation, reward, done, truncated, env_infos = env.step(actions)
+        observation, reward, done, _, env_infos = env.step(actions)
+        total_wait_time += sum(r.wait_time for r in env_infos["served_requests"])
+        total_travel_time += sum(r.travel_time for r in env_infos["served_requests"])
 
         if not args.disable_prints:
             print("Actions:", actions)
             print("Reward:", reward)
-            print("Observation:", observation)
+            print("Next Observation:", observation)
             print("Hidden state:", env.passenger_requests)
             if args.agent_type == RLElevatorAgent:
                 print("Log probabilities:", inference_infos["action_logits"])
@@ -107,9 +120,14 @@ def run_simulation(args: Namespace):
         total_reward += reward
 
     if not args.disable_prints:
-        print(f"Simulation ended, total reward: {total_reward}")
+        print("Simulation ended.")
+        print(f"Total reward: {total_reward:.2f}")
+        print(f"Total served requests: {env.served_requests}")
+        print(f"Average wait time: {total_wait_time / env.served_requests:.2f}")
+        print(f"Average travel time: {total_travel_time / env.served_requests:.2f}")
+        print(f"Pending requests: {len(env.passenger_requests)}")
 
-    return total_reward
+    return total_reward, env.served_requests, total_wait_time, total_travel_time
 
 
 def main():

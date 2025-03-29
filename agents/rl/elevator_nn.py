@@ -18,7 +18,7 @@ class ElevatorActorCriticNetwork(nn.Module):
         use_dropout: bool = False,
         dropout_prob: float = 0.5,
         use_batch_norm: bool = False,
-        num_actions: int = 3,  # ElevatorAction.UP, DOWN, IDLE
+        num_actions: int = 4,  # ElevatorAction.UP, DOWN, IDLE, STOP
     ):
         super().__init__()
 

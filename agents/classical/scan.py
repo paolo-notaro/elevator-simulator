@@ -1,12 +1,13 @@
 """scan.py: SCAN elevator agent."""
 
 from enum import Enum
-import numpy as np
 from typing import Any
+
+import numpy as np
+
 from agents.base import BaseAgent
 from environments.elevator import ElevatorAction
 from environments.elevator_environment import ElevatorEnvironmentObservation
-from agents.utils import unpack_flat_observation
 
 
 class SCANDirection(Enum):
@@ -38,35 +39,69 @@ class SCANAgent(BaseAgent):
 
         Returns:
             A tuple containing the action(s) to take and additional information.
+            A dictionary with additional information about the action taken.
         """
-        if isinstance(observation, np.ndarray):
-            observation = unpack_flat_observation(
-                observation, num_floors=self.num_floors, num_elevators=self.num_elevators
-            )
 
         elevator_position = observation["elevators"]["current_floor"][0]
-        next_action = self._get_next_action(elevator_position)
-        return [next_action], {}
+        internal_requests = observation["elevators"]["internal_requests"][0]
+        requests_up = observation["requests_up"]
+        requests_down = observation["requests_down"]
 
-    def _get_next_action(self, pos: int) -> ElevatorAction:
-        """Determine the next action based on the current position.
+        stop_needed = self._should_stop(
+            pos=elevator_position,
+            internal_requests=internal_requests,
+            requests_up=requests_up,
+            requests_down=requests_down,
+        )
 
-        Args:
-            pos: The current position of the elevator.
+        if stop_needed:
+            action = ElevatorAction.STOP
+        else:
+            action = self._move(elevator_position)
 
-        Returns:
-            The next action to take
-        """
+        return [action], {}
+
+    def _should_stop(
+        self,
+        pos: int,
+        internal_requests: np.ndarray,
+        requests_up: np.ndarray,
+        requests_down: np.ndarray,
+    ) -> bool:
+        """Determine if the elevator should STOP at the current floor."""
+
+        if internal_requests[pos]:
+            return True
+
+        if self.direction == SCANDirection.UP:
+            if requests_up[pos]:
+                return True
+            # Edge: If we're at the top floor and need to reverse, check for DOWN requests
+            if pos == self.num_floors - 1 and requests_down[pos]:
+                return True
+
+        if self.direction == SCANDirection.DOWN:
+            if requests_down[pos]:
+                return True
+            if pos == 0 and requests_up[pos]:
+                return True
+
+        return False
+
+    def _move(self, pos: int) -> ElevatorAction:
+        """Move in the current direction. Reverse only when stuck."""
         if self.direction == SCANDirection.UP:
             if pos < self.num_floors - 1:
                 return ElevatorAction.UP
-            self.direction = SCANDirection.DOWN
-            return ElevatorAction.DOWN
+            else:
+                self.direction = SCANDirection.DOWN
+                return ElevatorAction.IDLE  # Let next act() call handle movement after reversal
 
-        if self.direction == SCANDirection.DOWN:
+        elif self.direction == SCANDirection.DOWN:
             if pos > 0:
                 return ElevatorAction.DOWN
-            self.direction = SCANDirection.UP
-            return ElevatorAction.UP
+            else:
+                self.direction = SCANDirection.UP
+                return ElevatorAction.IDLE
 
         return ElevatorAction.IDLE

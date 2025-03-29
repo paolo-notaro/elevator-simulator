@@ -35,6 +35,8 @@ class ElevatorEnvironment(Env):
     FLOOR_UP_TRAVEL_PENALTY = 0.15
     FLOOR_DOWN_TRAVEL_PENALTY = 0.05
     FLOOR_IDLE_PENALTY = 0.01
+    FLOOR_DOOR_PENALTY = 0.05
+    UNPRODUCTIVE_STOP_PENALTY = 0.1
     SUCCESSFUL_LOAD_REWARD = 1
     SUCCESSFUL_UNLOAD_REWARD = 2
     UNSERVED_REQUEST_PENALTY = 0.1
@@ -119,6 +121,7 @@ class ElevatorEnvironment(Env):
                         "current_load": MultiDiscrete(
                             [cap + 1 for cap in self.elevator_capacities]
                         ),
+                        "internal_requests": MultiBinary(self.num_floors),
                     }
                 ),
                 "requests_up": MultiBinary(self.num_floors),
@@ -130,6 +133,7 @@ class ElevatorEnvironment(Env):
         elevators = {
             "current_floor": np.array([e.current_floor for e in self.elevators]),
             "current_load": np.array([e.current_load for e in self.elevators]),
+            "internal_requests": np.array([e.internal_requests for e in self.elevators]),
         }
 
         requests_up, requests_down = self._get_requests_up_down()
@@ -147,6 +151,7 @@ class ElevatorEnvironment(Env):
             elevator.reset()
         self.passenger_requests = []
         self.served_requests = 0
+        self.elevator_times = [0.0] * self.num_elevators
         if seed is None:
             seed = np.random.randint(0, 1000)
         np.random.seed(seed)
@@ -156,45 +161,60 @@ class ElevatorEnvironment(Env):
         """Perform an action on the environment."""
 
         reward = 0.0
+        env_infos = {"served_requests": []}
 
         for elevator_idx, (elevator, action) in enumerate(zip(self.elevators, actions)):
 
             # update elevator state (excluding load/unload)
-            elevator.apply_action(action)
+            elevator.apply_action(action, self.step_count)
 
-            # update reward based on energy consumption
+            # update reward based on energy consumption, for STOP also update elevator load/unload
             if action == ElevatorAction.UP:
                 reward -= self.FLOOR_UP_TRAVEL_PENALTY
             elif action == ElevatorAction.DOWN:
                 reward -= self.FLOOR_DOWN_TRAVEL_PENALTY
             elif action == ElevatorAction.IDLE:
                 reward -= self.FLOOR_IDLE_PENALTY
+            elif action == ElevatorAction.STOP:
+                reward -= self.FLOOR_DOOR_PENALTY
 
-            # update elevator state (unload)
-            requests_on_elevator = [
-                req for req in self.passenger_requests if req.current_elevator_index == elevator_idx
-            ]
-            for request in requests_on_elevator:
-                elevator.current_load -= request.num_passengers
-                request.current_elevator_index = None
-                request.unload_step = self.step_count
-                reward += self.SUCCESSFUL_UNLOAD_REWARD * request.num_passengers
-                self.passenger_requests.remove(request)
-                self.served_requests += 1
+                unproductive_stop = True
 
-            # update elevator state (load)
-            requests_on_floor = [
-                req
-                for req in self.passenger_requests
-                if req.start_floor == elevator.current_floor and req.current_elevator_index is None
-            ]
-            for request in requests_on_floor:
-                if elevator.current_load + request.num_passengers <= elevator.capacity:
-                    elevator.current_load += request.num_passengers
-                    elevator.internal_requests[request.end_floor] = True
-                    request.current_elevator_index = elevator_idx
-                    request.load_step = self.step_count
-                    reward += self.SUCCESSFUL_LOAD_REWARD * request.num_passengers
+                # update elevator state (unload)
+                requests_on_elevator = [
+                    req
+                    for req in self.passenger_requests
+                    if req.current_elevator_index == elevator_idx
+                ]
+                for request in requests_on_elevator:
+                    elevator.current_load -= request.num_passengers
+                    request.current_elevator_index = None
+                    request.unload_time = elevator.internal_time
+                    reward += self.SUCCESSFUL_UNLOAD_REWARD * request.num_passengers
+                    env_infos["served_requests"].append(request)
+                    self.passenger_requests.remove(request)
+                    self.served_requests += 1
+                    unproductive_stop = False
+
+                # update elevator state (load)
+                requests_on_floor = [
+                    req
+                    for req in self.passenger_requests
+                    if req.start_floor == elevator.current_floor
+                    and req.current_elevator_index is None
+                ]
+                for request in requests_on_floor:
+                    if elevator.current_load + request.num_passengers <= elevator.capacity:
+                        elevator.current_load += request.num_passengers
+                        elevator.internal_requests[request.end_floor] = True
+                        request.current_elevator_index = elevator_idx
+                        request.creation_time = elevator.steps_to_time[request.creation_step]
+                        request.load_time = elevator.internal_time
+                        reward += self.SUCCESSFUL_LOAD_REWARD * request.num_passengers
+                        unproductive_stop = False
+
+                if unproductive_stop:
+                    reward -= self.UNPRODUCTIVE_STOP_PENALTY
 
         # workload scenario appends new requests
         self.passenger_requests += self.workload_scenario.step(self.step_count)
@@ -210,7 +230,7 @@ class ElevatorEnvironment(Env):
                 if r.current_elevator_index is None  # open requests not loaded
             )
             reward -= ElevatorEnvironment.UNCOMPLETED_REQUEST_PENALTY * sum(
-                (self.step_count - r.load_step)
+                (self.elevators[r.current_elevator_index].internal_time - r.load_time)
                 for r in self.passenger_requests
                 if r.current_elevator_index is not None  # loaded requests not unloaded
             )
@@ -218,7 +238,7 @@ class ElevatorEnvironment(Env):
             self.step_count += 1
             time.sleep(self.delay)
 
-        return observation, reward, done, False, {}
+        return observation, reward, done, False, env_infos
 
     def render(self):
         pass

@@ -38,17 +38,35 @@ def evaluate(args: Namespace) -> None:
 
     args.delay = 0
     args.disable_prints = True
+    avg_wait_time = 0
+    avg_travel_time = 0
+    avg_requests = 0
     for i in (progress_bar := tqdm(range(args.num_runs))):
         args.seed = i
         t_start = time.time()
-        reward = run_simulation(args)
+        reward, total_requests, total_wait_time, total_travel_time = run_simulation(args)
         times.append(time.time() - t_start)
         rewards.append(reward)
         progress_bar.set_description(f"reward={reward:8.2f}")
+        wait_time_i = total_wait_time / (total_requests + 1e-8)
+        travel_time_i = total_travel_time / (total_requests + 1e-8)
+
+        avg_wait_time += wait_time_i
+        avg_travel_time += travel_time_i
+        avg_requests += total_requests
+
+    avg_wait_time /= args.num_runs
+    avg_travel_time /= args.num_runs
+    avg_requests /= args.num_runs
 
     print(
         f"\nReward min/avg/max (stdev): "
         f"{min(rewards):8.2f}/{mean(rewards):8.2f}/{max(rewards):8.2f} ({stdev(rewards):.2f})"
+    )
+    print(
+        f"Average request wait time: {avg_wait_time:.2f},"
+        f"average travel time: {avg_travel_time:.2f},"
+        f"average requests completed: {avg_requests:.2f}"
     )
     print(f"(Total/average) simulation time: {sum(times):.2f}/{mean(times):.2f} seconds")
 

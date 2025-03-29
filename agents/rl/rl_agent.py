@@ -20,6 +20,7 @@ class RLElevatorAgent(BaseAgent):
         self,
         num_floors: int,
         num_elevators: int,
+        elevator_capacities: list[int] | int = 10,  # default elevator capacity
         embedding_dim: int = 16,
         hidden_dim: int = 128,
         num_layers: int = 3,
@@ -31,11 +32,20 @@ class RLElevatorAgent(BaseAgent):
         super().__init__(num_floors=num_floors, num_elevators=num_elevators)
 
         self.num_actions = len(ElevatorAction)
+        if isinstance(elevator_capacities, int):
+            elevator_capacities = [elevator_capacities] * num_elevators
+        elif isinstance(elevator_capacities, list):
+            assert (
+                len(elevator_capacities) == num_elevators
+            ), "Number of elevators and elevator capacities do not match"
+        else:
+            raise ValueError("Invalid elevator capacities")
+        self.elevator_capacities = elevator_capacities
+        self.num_floors = num_floors
+        self.num_elevators = num_elevators
         self.embedding_dim = embedding_dim
-        self.device = device
 
-        # Observation size = position (1) + load (1) + requests_up + requests_down
-        self.obs_dim = num_floors * 2 + 2
+        self.device = device
 
         self.action_embedding = ActionEmbedding(self.num_actions, embedding_dim).to(device)
         self.model = ElevatorActorCriticNetwork(
@@ -51,15 +61,30 @@ class RLElevatorAgent(BaseAgent):
         self.model.eval()
         self.action_embedding.eval()
 
+    @property
+    def obs_dim(self) -> int:
+        """Observation dimension for the elevator agent."""
+        # [position, load] + position_one_hot + internal requests + requests up + requests down
+        return 2 + 4 * self.num_floors
+
     def prepare_observation(self, elevator_idx, observation):
         elevator_obs = observation["elevators"]
-        position = elevator_obs["current_floor"][elevator_idx] / self.num_floors
-        load = elevator_obs["current_load"][elevator_idx] / 10
+
+        # One-hot encode position
+        position = elevator_obs["current_floor"][elevator_idx]
+        position_one_hot = np.zeros(self.num_floors, dtype=float)
+        position_one_hot[position] = 1.0
+
+        load = elevator_obs["current_load"][elevator_idx] / self.elevator_capacities[elevator_idx]
+        internal_requests = elevator_obs["internal_requests"][elevator_idx]
 
         requests_up = observation["requests_up"].astype(float)
         requests_down = observation["requests_down"].astype(float)
 
-        obs_vec = np.concatenate([[position, load], requests_up, requests_down], axis=0)
+        obs_vec = np.concatenate(
+            [position_one_hot, [position, load], internal_requests, requests_up, requests_down],
+            axis=0,
+        )
         return torch.tensor(obs_vec, dtype=torch.float32).to(self.device)
 
     def act(

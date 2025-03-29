@@ -283,21 +283,22 @@ def main():
     # Inputs and hyperparameters
     num_floors = 10
     num_elevators = 1
+    elevator_capacities = 10
     max_episode_length = 1000
     embedding_dim = 16
-    hidden_dim = 128
+    hidden_dim = 256
     num_layers = 3
-    use_dropout = False
-    dropout_prob = 0.3
-    use_batch_norm = False
+    use_dropout = True
+    dropout_prob = 0.1
+    use_batch_norm = True
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     num_episodes = 1000
     batch_size = 32
-    value_loss_coef = 0.25
+    value_loss_coef = 0.0
     gamma = 0.9
-    learning_rate = 1e-4
+    learning_rate = 3e-4
     early_stop_loss = 0.05
-    eval_every = 10
+    eval_every = 25
     eval_episodes = 10
     save_every = 100
 
@@ -310,6 +311,7 @@ def main():
     rl_agent = RLElevatorAgent(
         num_floors=num_floors,
         num_elevators=num_elevators,
+        elevator_capacities=elevator_capacities,
         embedding_dim=embedding_dim,
         hidden_dim=hidden_dim,
         num_layers=num_layers,
@@ -330,6 +332,7 @@ def main():
             {
                 "num_floors": num_floors,
                 "num_elevators": num_elevators,
+                "elevator_capacities": elevator_capacities,
                 "max_episode_length": max_episode_length,
                 "embedding_dim": embedding_dim,
                 "hidden_dim": hidden_dim,
