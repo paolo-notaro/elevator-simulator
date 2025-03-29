@@ -32,10 +32,11 @@ def evaluate(args: Namespace) -> None:
 
     rewards = []
     times = []
+
+    args.delay = 0
+    args.disable_prints = True
     for i in (progress_bar := tqdm(range(args.num_runs))):
         args.seed = i
-        args.delay = 0
-        args.disable_prints = True
         t_start = time.time()
         reward = run_simulation(args)
         times.append(time.time() - t_start)
@@ -50,6 +51,7 @@ def evaluate(args: Namespace) -> None:
 
 
 def main():
+    """Main function."""
     args = parse_args()
     evaluate(args)
 

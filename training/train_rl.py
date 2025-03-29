@@ -21,12 +21,20 @@ def parse_args():
         "--hidden_dim", type=int, default=128, help="Hidden layer size of the model"
     )
     parser.add_argument("--lr", type=float, default=3e-4, help="Learning rate")
-    parser.add_argument("--episodes", type=int, default=100, help="Number of training episodes")
+    parser.add_argument("--episodes", type=int, default=1000, help="Number of training episodes")
     parser.add_argument("--clip_eps", type=float, default=0.2, help="Clipping epsilon for PPO loss")
     parser.add_argument("--gamma", type=float, default=0.99, help="Discount factor")
     parser.add_argument("--lam", type=float, default=0.95, help="GAE lambda")
     parser.add_argument(
-        "--entropy_coef", type=float, default=0.01, help="Coefficient for entropy loss"
+        "--entropy_coef", type=float, default=0.05, help="Coefficient for exploration bonus"
+    )
+    parser.add_argument(
+        "--value_loss_coef", type=float, default=0.1, help="Coefficient for value loss"
+    )
+    parser.add_argument(
+        "--clip_value_loss_eps",
+        type=float,
+        default=0.2,
     )
     parser.add_argument("--load-model-path", type=str, default=None, required=False)
     parser.add_argument(
@@ -38,7 +46,7 @@ def parse_args():
     parser.add_argument(
         "--checkpoint-every",
         type=int,
-        default=10,
+        default=100,
         help="Checkpoint model every n episodes, if model improves",
     )
     parser.add_argument(
@@ -71,6 +79,10 @@ def train(args: argparse.Namespace) -> None:
                 "out_model_path": args.out_model_path,
                 "lam": args.lam,
                 "entropy_coef": args.entropy_coef,
+                "value_loss_coef": args.value_loss_coef,
+                "clip_value_loss_eps": args.clip_value_loss_eps,
+                "checkpoint_every": args.checkpoint_every,
+                "checkpoint_all": args.checkpoint_all,
             }
         )
 
@@ -86,6 +98,8 @@ def train(args: argparse.Namespace) -> None:
             gamma=args.gamma,
             lam=args.lam,
             entropy_coef=args.entropy_coef,
+            value_loss_coef=args.value_loss_coef,
+            clip_value_loss_eps=args.clip_value_loss_eps,
         )
 
         # Train agent
@@ -96,7 +110,7 @@ def train(args: argparse.Namespace) -> None:
         )
 
         # Save model
-        final_model_path = args.model_path.format(run_name=mlflow.active_run().info.run_name)
+        final_model_path = args.out_model_path.format(run_name=mlflow.active_run().info.run_name)
         trainer.agent.save(final_model_path)
         mlflow.log_artifact(final_model_path)
         print(f"Final model saved to {final_model_path}.")

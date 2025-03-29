@@ -28,6 +28,8 @@ class PPOTrainer:
         gamma: float = 0.99,
         lam: float = 0.95,
         entropy_coef: float = 0.01,
+        value_loss_coef: float = 0.5,
+        clip_value_loss_eps: float = 0.2,
     ):
         """Initialize the PPO trainer."""
         self.load_model_path = load_model_path
@@ -36,10 +38,14 @@ class PPOTrainer:
         self.num_elevators = num_elevators
         self.num_actions = len(ElevatorAction)
         self.embedding_dim = embedding_dim
-        self.gamma = gamma
+        self.hidden_dim = hidden_dim
+        self.lr = lr
         self.clip_eps = clip_eps
+        self.gamma = gamma
         self.lam = lam
         self.entropy_coef = entropy_coef
+        self.value_loss_coef = value_loss_coef
+        self.clip_value_loss_eps = clip_value_loss_eps
         self.episode_count = 0
 
         self.env = ElevatorEnvironment(
@@ -123,7 +129,7 @@ class PPOTrainer:
                 trajectory["a_embed"].append(action_embed)
                 trajectory["actions"].append(action)
                 trajectory["log_probs"].append(log_prob)
-                trajectory["values"].append(value.squeeze(0))  # scalar
+                trajectory["values"].append(value.view(-1))  # scalar
 
             env_actions = [ElevatorAction(a) for a in actions]
             next_obs, reward, done, _, _ = self.env.step(env_actions)
@@ -141,12 +147,15 @@ class PPOTrainer:
             obs = next_obs
 
         # Post-episode update
-        policy_loss = 0
+        policy_loss = 0.0
+        value_loss = 0.0
         elevator_entropies = []
         elevator_advantages = []
         prev_actions = []
         for idx in range(self.num_elevators):
             trajectory = trajectories[idx]
+
+            # Elevator forward pass
             with torch.no_grad():
                 obs_tensor = self.agent.prepare_observation(idx, obs).to(self.device).unsqueeze(0)
 
@@ -163,8 +172,9 @@ class PPOTrainer:
                 prev_actions.append(action_idx)
                 next_value = next_value.squeeze(0)
 
-            values_tensor = torch.stack(trajectory["values"]).to(self.device)
-            advantages, _ = compute_gae(
+            # Estimate advantages and returns using GAE
+            values_tensor = torch.stack(trajectory["values"]).view(-1).to(self.device)
+            advantages, returns = compute_gae(
                 rewards=trajectory["rewards"],
                 values=values_tensor,
                 next_value=next_value,
@@ -172,7 +182,20 @@ class PPOTrainer:
                 gamma=self.gamma,
                 lam=self.lam,
             )
+            assert (
+                returns.shape == values_tensor.shape
+            ), f"Mismatch: {returns.shape} vs {values_tensor.shape}"
 
+            # Critic loss (MSE between predicted values and returns)
+            # value_loss += torch.nn.functional.mse_loss(values_tensor, returns.detach())
+            value_pred_clipped = values_tensor + (returns - values_tensor).clamp(
+                -self.clip_value_loss_eps, self.clip_value_loss_eps
+            )
+            value_loss_clipped = (value_pred_clipped - returns).pow(2)
+            value_loss_unclipped = (values_tensor - returns).pow(2)
+            value_loss += 0.5 * torch.max(value_loss_unclipped, value_loss_clipped).mean()
+
+            # Policy loss (PPO clipped surrogate objective)
             log_probs_old = torch.stack(trajectory["log_probs"])
             actions = torch.stack(trajectory["actions"])
             obs_batch = torch.cat(trajectory["obs"])
@@ -194,19 +217,38 @@ class PPOTrainer:
             elevator_entropies.append(entropy.item())
             elevator_advantages.append(adv.mean().item())
 
-        policy_loss /= self.num_elevators
+        # compute total loss
+        total_loss = policy_loss + self.value_loss_coef * value_loss
+        total_loss /= self.num_elevators
 
         # back-propagation
         self.optimizer.zero_grad()
-        policy_loss.backward()
+        total_loss.backward()
+
+        # Clip gradient norms to prevent exploding gradients
+        torch.nn.utils.clip_grad_norm_(self.agent.model.parameters(), max_norm=1.0)
+
+        # Update step
+        self.optimizer.step()
+
+        # Report values on MLFlow
         mlflow.log_metric("policy_loss", policy_loss.item(), step=self.episode_count)
+        mlflow.log_metric("value_loss", value_loss.item(), step=self.episode_count)
+        mlflow.log_metric("total_loss", total_loss.item(), step=self.episode_count)
         mlflow.log_metric(
             "mean_elevator_entropy", np.mean(elevator_entropies), step=self.episode_count
         )
         mlflow.log_metric("mean_advantage", np.mean(elevator_advantages), step=self.episode_count)
+        mlflow.log_metric(
+            "value_vs_return_diff",
+            (values_tensor - returns).abs().mean().item(),
+            step=self.episode_count,
+        )
 
-        # update step
-        self.optimizer.step()
+        total_grad_norm = sum(
+            p.grad.norm().item() for p in self.agent.model.parameters() if p.grad is not None
+        )
+        mlflow.log_metric("grad_norm", total_grad_norm, step=self.episode_count)
 
         return total_reward
 
