@@ -1,8 +1,11 @@
+"""evaluate.py: Evaluate the agents over multiple runs."""
+
 from simulation.run import run_simulation, VALID_AGENTS, agent_type
 from argparse import ArgumentParser, Namespace
+import time
+
 from statistics import stdev, mean
 from tqdm import tqdm
-import time
 
 
 def parse_args() -> Namespace:
