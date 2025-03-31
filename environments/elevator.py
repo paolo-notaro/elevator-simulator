@@ -35,8 +35,6 @@ class Elevator:
     current_floor: int
     current_load: int
     internal_requests: list[bool]
-    internal_time: float = 0.0
-    steps_to_time: dict[int, float] = dict()
 
     def __init__(
         self,
@@ -56,7 +54,7 @@ class Elevator:
         self.internal_time = 0.0
         self.steps_to_time = {}
 
-    def apply_action(self, action: ElevatorAction, step_count: int) -> None:
+    def apply_action(self, action: ElevatorAction) -> None:
         """Perform an action on the elevator.
 
         Args:
@@ -69,22 +67,15 @@ class Elevator:
             if self.current_floor < self.floors - 1:
                 self.doors_open = False
                 self.current_floor += 1
-                self.internal_time += self.FLOOR_TRAVEL_TIME
 
         elif action == ElevatorAction.DOWN:
             if self.current_floor > 0:
                 self.doors_open = False
                 self.current_floor -= 1
-                self.internal_time += self.FLOOR_TRAVEL_TIME
         elif action == ElevatorAction.IDLE:
             self.doors_open = False
-            self.internal_time += self.IDLE_TIME
         elif action == ElevatorAction.STOP:
-            self.internal_time += self.DOOR_OPEN_TIME
             self.doors_open = True
             self.internal_requests[self.current_floor] = False
-            self.internal_time += self.DOOR_CLOSE_TIME
         else:
             raise ValueError("Invalid action")
-
-        self.steps_to_time[step_count] = self.internal_time  # memorize the time

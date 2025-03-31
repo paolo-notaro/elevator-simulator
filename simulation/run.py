@@ -74,11 +74,13 @@ def run_simulation(args: Namespace) -> tuple[float, int, float, float]:
         # device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
         custom_args = {
             "embedding_dim": 16,
-            "hidden_dim": 128,
+            "hidden_dim": 256,
             "num_layers": 3,
             "device": device,
-            "use_batch_norm": False,
-            "use_dropout": False,
+            "use_batch_norm": True,
+            "use_dropout": True,
+            "dropout_prob": 0.1,
+            "elevator_capacities": args.elevator_capacities,
         }
 
     # create agent

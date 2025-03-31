@@ -292,12 +292,12 @@ def main():
     dropout_prob = 0.1
     use_batch_norm = True
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    num_episodes = 1000
+    num_episodes = 10000
     batch_size = 32
-    value_loss_coef = 0.0
-    gamma = 0.9
+    value_loss_coef = 0.1
+    gamma = 0.99
     learning_rate = 3e-4
-    early_stop_loss = 0.05
+    early_stop_loss = 0.000
     eval_every = 25
     eval_episodes = 10
     save_every = 100

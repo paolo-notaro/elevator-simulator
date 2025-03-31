@@ -18,7 +18,43 @@ def parse_args():
         "--embedding_dim", type=int, default=16, help="Size of the action embedding"
     )
     parser.add_argument(
-        "--hidden_dim", type=int, default=128, help="Hidden layer size of the model"
+        "--hidden_dim", type=int, default=256, help="Hidden layer size of the model"
+    )
+    parser.add_argument(
+        "--elevator_capacities",
+        type=int,
+        default=10,
+        help="Elevator capacities (default: 10 for all elevators)",
+    )
+    parser.add_argument(
+        "--max_episode_length",
+        type=int,
+        default=1000,
+        help="Maximum episode length (default: 1000)",
+    )
+    parser.add_argument(
+        "--num_layers",
+        type=int,
+        default=3,
+        help="Number of layers in the neural network",
+    )
+    parser.add_argument(
+        "--use_dropout",
+        type=bool,
+        default=False,
+        help="Use dropout in the neural network",
+    )
+    parser.add_argument(
+        "--dropout_prob",
+        type=float,
+        default=0.3,
+        help="Dropout probability (default: 0.3)",
+    )
+    parser.add_argument(
+        "--use_batch_norm",
+        type=bool,
+        default=True,
+        help="Use batch normalization in the neural network",
     )
     parser.add_argument("--lr", type=float, default=3e-4, help="Learning rate")
     parser.add_argument("--episodes", type=int, default=1000, help="Number of training episodes")
@@ -71,6 +107,12 @@ def train(args: argparse.Namespace) -> None:
                 "num_elevators": args.num_elevators,
                 "embedding_dim": args.embedding_dim,
                 "hidden_dim": args.hidden_dim,
+                "elevator_capacities": args.elevator_capacities,
+                "max_episode_length": args.max_episode_length,
+                "num_layers": args.num_layers,
+                "use_dropout": args.use_dropout,
+                "dropout_prob": args.dropout_prob,
+                "use_batch_norm": args.use_batch_norm,
                 "lr": args.lr,
                 "episodes": args.episodes,
                 "clip_eps": args.clip_eps,
@@ -91,8 +133,14 @@ def train(args: argparse.Namespace) -> None:
             load_model_path=args.load_model_path,
             num_floors=args.num_floors,
             num_elevators=args.num_elevators,
+            max_episode_length=args.max_episode_length,
             embedding_dim=args.embedding_dim,
             hidden_dim=args.hidden_dim,
+            elevator_capacities=args.elevator_capacities,
+            num_layers=args.num_layers,
+            use_dropout=args.use_dropout,
+            dropout_prob=args.dropout_prob,
+            use_batch_norm=args.use_batch_norm,
             lr=args.lr,
             clip_eps=args.clip_eps,
             gamma=args.gamma,

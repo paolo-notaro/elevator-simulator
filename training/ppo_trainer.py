@@ -21,8 +21,14 @@ class PPOTrainer:
         load_model_path: str = None,
         num_floors: int = 10,
         num_elevators: int = 3,
+        max_episode_length: int = 1000,
         embedding_dim: int = 16,
         hidden_dim: int = 128,
+        elevator_capacities: list[int] | int = 10,
+        num_layers: int = 3,
+        use_dropout: bool = False,
+        dropout_prob: float = 0.3,
+        use_batch_norm: bool = True,
         lr: float = 3e-4,
         clip_eps: float = 0.2,
         gamma: float = 0.99,
@@ -51,9 +57,9 @@ class PPOTrainer:
         self.env = ElevatorEnvironment(
             num_floors=num_floors,
             num_elevators=num_elevators,
-            max_length=1000,
+            max_length=max_episode_length,
             workload_scenario=None,
-            elevator_capacities=8,
+            elevator_capacities=elevator_capacities,
             seed=42,
             delay=0,  # no delay for training
         )
@@ -64,10 +70,12 @@ class PPOTrainer:
             num_elevators=num_elevators,
             embedding_dim=embedding_dim,
             hidden_dim=hidden_dim,
-            num_layers=3,
+            num_layers=num_layers,
+            elevator_capacities=elevator_capacities,
+            dropout_prob=dropout_prob,
+            use_dropout=use_dropout,
+            use_batch_norm=use_batch_norm,
             device=self.device,
-            use_batch_norm=False,
-            use_dropout=False,
         )
         if load_model_path is not None:
             self.agent.load(load_model_path)
@@ -90,7 +98,7 @@ class PPOTrainer:
         down = obs["requests_down"].astype(float)
         return torch.tensor(np.concatenate([[pos, load], up, down]), dtype=torch.float32)
 
-    def train_step(self):
+    def train_step(self, step_count: int):
         """Train the agent for a single episode."""
         obs, _ = self.env.reset()
         done = False
@@ -101,6 +109,17 @@ class PPOTrainer:
             {"obs": [], "a_embed": [], "actions": [], "log_probs": [], "rewards": [], "values": []}
             for _ in range(self.num_elevators)
         ]
+
+        warmup_steps = 100  # Warmup steps for critic head
+        # Disable critic head training during warmup
+        if step_count < warmup_steps:
+            for param in self.agent.model.critic_head.parameters():
+                param.requires_grad = False
+                self.entropy_coef = 0.01
+        else:
+            for param in self.agent.model.critic_head.parameters():
+                param.requires_grad = True
+                self.entropy_coef = 0.1
 
         while not done:
             actions = []
@@ -262,7 +281,7 @@ class PPOTrainer:
         progress = trange(episodes, desc="Training", leave=True)
         best_smoothed_reward = -np.inf
         for self.episode_count in progress:
-            reward = self.train_step()
+            reward = self.train_step(step_count=self.episode_count)
 
             if self.smoothed_reward is None:
                 self.smoothed_reward = reward

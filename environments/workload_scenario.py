@@ -13,23 +13,22 @@ class PassengerRequest:
     num_passengers: int
     current_elevator_index: int = None
     creation_step: int = None
-    creation_time: float = None
-    load_time: float = None
-    unload_time: float = None
+    load_step: float = None
+    unload_step: float = None
 
     @property
     def wait_time(self):
         """The time between the request being created and the passengers being loaded."""
-        if self.load_time is None or self.creation_time is None:
+        if self.load_step is None or self.creation_step is None:
             return None
-        return self.load_time - self.creation_time
+        return self.load_step - self.creation_step
 
     @property
     def travel_time(self):
         """The time between the passengers being loaded and unloaded."""
-        if self.load_time is None or self.unload_time is None:
+        if self.load_step is None or self.unload_step is None:
             return None
-        return self.unload_time - self.load_time
+        return self.unload_step - self.load_step
 
 
 class WorkloadScenario(ABC):

@@ -51,26 +51,25 @@ class FCFSAgent(BaseAgent):
         if requests_up[current_floor] or requests_down[current_floor]:
             return [ElevatorAction.STOP], {}
 
-        if self.pending_request is not None:
-            # If there is a pending request, go to the floor
-            next_floor = self.pending_request
-        elif self.request_queue:
-            # Get the next request and remove it from the list
-            self.pending_request = self.request_queue.pop(0)
-            next_floor = self.pending_request
-        else:
-            # No external request in queue → check internal requests
+        # Always check internal requests first (to avoid idle after load)
+        if self.pending_request is None:
             internal_targets = np.where(internal_requests)[0].tolist()
             if internal_targets:
-                self.pending_request = internal_targets[0]  # serve first internal request
-                next_floor = self.pending_request
-            else:
-                return [ElevatorAction.IDLE], {}
+                self.pending_request = internal_targets[0]
 
-        # if floor is above, go UP, else go DOWN
+        # if not request is pending
+        if self.pending_request is None and self.request_queue:
+            self.pending_request = self.request_queue.pop(0)
+
+        if self.pending_request is None:
+            return [ElevatorAction.IDLE], {}
+
+        # Decide direction
+        next_floor = self.pending_request
         if next_floor > current_floor:
             return [ElevatorAction.UP], {}
-        if next_floor < current_floor:
+        elif next_floor < current_floor:
             return [ElevatorAction.DOWN], {}
-        self.pending_request = None
-        return [ElevatorAction.IDLE], {}
+        else:
+            self.pending_request = None
+            return [ElevatorAction.IDLE], {}

@@ -98,9 +98,10 @@ python -m training.imitation
 # Results
 
 episodes=1000, scenario= random workload scenario with default parameters
+Reward min /mean / max (std) / wait_time / travel_time / requests_served / avg_run_duration
 
-* FCFS: -1521.57 / -533.60 / 114.87 +- 263.92 / 0.19
-* SCAN:  397.95 / 495.36 / 594.15 +- 39.50 / 0.18
-* LOOK:  439.85 / 534.41 /  631.33 +- 37.01 / 0.18
-* Best Imitation Learning model (teacher=LOOK, loss<0.2):  432.69/  529.16/  626.99 +- 36.50 / 0.80
-* Best RL Model (after imitation teacher=LOOK, loss=0.2): 395.91/  503.18/  587.33 +- 40.07 / 0.65
+* FCFS:  -3260.21/ -204.63/  430.82 (905.86) / 16.33  / 10.82 / 149.76 / 0.17
+* SCAN:  -2197.31/  402.73/  492.52 (108.74) / 11.79 /  7.45 / 195.67 / 0.15
+* LOOK:  -1546.42/  413.51/  512.16 (121.87) / 9.89 /  6.47 / 196.40 / 0.18
+* Best Imitation Learning model (teacher=LOOK, loss<0.2):  -2788.44/  350.07/  512.70 (354.19) / 10.14 / 6.74 / 191.27 / 3.00
+* Best RL Model (after imitation teacher=LOOK, loss=0.2): -2169.88/  402.35/  500.48 (106.49) / 11.35 / 7.49 / 196.00 / 3.11
